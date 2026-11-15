@@ -1,0 +1,38 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find project (works with loose files or an uploaded zip)
+        run: |
+          if [ ! -f settings.gradle.kts ] && ! find . -name settings.gradle.kts -not -path './.git/*' | grep -q .; then
+            for z in *.zip; do [ -f "$z" ] && unzip -qo "$z" -d "$RUNNER_TEMP/proj"; done
+            ROOT=$(dirname "$(find "$RUNNER_TEMP/proj" -name settings.gradle.kts | head -1)")
+          else
+            ROOT=$(dirname "$(find . -name settings.gradle.kts -not -path './.git/*' | head -1)")
+          fi
+          echo "APP_DIR=$(cd "$ROOT" && pwd)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Build debug APK
+        working-directory: ${{ env.APP_DIR }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Orbit-Contacts-APK
+          path: ${{ env.APP_DIR }}/app/build/outputs/apk/debug/*.apk
